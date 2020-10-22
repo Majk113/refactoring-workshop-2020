@@ -65,6 +65,16 @@ Controller::Controller(IPort& p_displayPort, IPort& p_foodPort, IPort& p_scorePo
     }
 }
 
+void Controller::clearOldFood(std::pair<int, int> foodPosition)
+{
+    DisplayInd clearOldFood;
+    clearOldFood.x = foodPosition.first;
+    clearOldFood.y = foodPosition.second;
+    clearOldFood.value = Cell_FREE;
+    m_displayPort.send(std::make_unique<EventT<DisplayInd>>(clearOldFood));
+}
+
+
 void Controller::receive(std::unique_ptr<Event> e)
 {
     try {
@@ -148,11 +158,8 @@ void Controller::receive(std::unique_ptr<Event> e)
                 if (requestedFoodCollidedWithSnake) {
                     m_foodPort.send(std::make_unique<EventT<FoodReq>>());
                 } else {
-                    DisplayInd clearOldFood;
-                    clearOldFood.x = m_foodPosition.first;
-                    clearOldFood.y = m_foodPosition.second;
-                    clearOldFood.value = Cell_FREE;
-                    m_displayPort.send(std::make_unique<EventT<DisplayInd>>(clearOldFood));
+
+                    clearOldFood(m_foodPosition);
 
                     DisplayInd placeNewFood;
                     placeNewFood.x = receivedFood.x;

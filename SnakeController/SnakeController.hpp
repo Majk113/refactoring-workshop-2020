@@ -31,6 +31,8 @@ public:
 
     void receive(std::unique_ptr<Event> e) override;
 
+    void clearOldFood(std::pair<int, int> foodPosition);
+
 private:
     struct Segment
     {
