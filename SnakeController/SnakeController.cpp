@@ -74,6 +74,23 @@ void Controller::clearOldFood(std::pair<int, int> foodPosition)
     m_displayPort.send(std::make_unique<EventT<DisplayInd>>(clearOldFood));
 }
 
+Controller::Segment Controller::createNewHead(int xPosition, int yPosition, int ttlOld)
+{
+    Segment newHead;
+    newHead.x = xPosition;
+    newHead.y = yPosition;
+    newHead.ttl = ttlOld;
+    return newHead;
+}
+
+void Controller::placeNewFood(int xPosition, int yPosition)
+{
+    DisplayInd foodToPlace;
+    foodToPlace.x = xPosition;
+    foodToPlace.y = yPosition;
+    foodToPlace.value = Cell_FOOD;
+    m_displayPort.send(std::make_unique<EventT<DisplayInd>>(foodToPlace));
+}
 
 void Controller::receive(std::unique_ptr<Event> e)
 {
@@ -82,10 +99,10 @@ void Controller::receive(std::unique_ptr<Event> e)
 
         Segment const& currentHead = m_segments.front();
 
-        Segment newHead;
-        newHead.x = currentHead.x + ((m_currentDirection & 0b01) ? (m_currentDirection & 0b10) ? 1 : -1 : 0);
-        newHead.y = currentHead.y + (not (m_currentDirection & 0b01) ? (m_currentDirection & 0b10) ? 1 : -1 : 0);
-        newHead.ttl = currentHead.ttl;
+        Segment newHead = createNewHead(currentHead.x + ((m_currentDirection & 0b01) ? (m_currentDirection & 0b10) ? 1 : -1 : 0),
+                                                currentHead.y + (not (m_currentDirection & 0b01) ? (m_currentDirection & 0b10) ? 1 : -1 : 0),
+                                                currentHead.ttl);
+
 
         bool lost = false;
 
@@ -185,11 +202,8 @@ void Controller::receive(std::unique_ptr<Event> e)
                     if (requestedFoodCollidedWithSnake) {
                         m_foodPort.send(std::make_unique<EventT<FoodReq>>());
                     } else {
-                        DisplayInd placeNewFood;
-                        placeNewFood.x = requestedFood.x;
-                        placeNewFood.y = requestedFood.y;
-                        placeNewFood.value = Cell_FOOD;
-                        m_displayPort.send(std::make_unique<EventT<DisplayInd>>(placeNewFood));
+
+                        placeNewFood(requestedFood.x, requestedFood.y);
                     }
 
                     m_foodPosition = std::make_pair(requestedFood.x, requestedFood.y);

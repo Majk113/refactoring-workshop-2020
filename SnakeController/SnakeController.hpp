@@ -33,6 +33,8 @@ public:
 
     void clearOldFood(std::pair<int, int> foodPosition);
 
+    
+
 private:
     struct Segment
     {
@@ -50,6 +52,8 @@ private:
 
     Direction m_currentDirection;
     std::list<Segment> m_segments;
+    Segment createNewHead(int xPosition, int yPosition, int ttlOld);
+    void placeNewFood(int xPosition, int yPosition);
 };
 
 } // namespace Snake
