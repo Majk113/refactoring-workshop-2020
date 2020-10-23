@@ -13,6 +13,18 @@ enum Direction
     Direction_RIGHT = 0b11
 };
 
+enum class MessageID
+{
+    DirectionIndMsg = 0x10,
+    TimeoutIndMsg = 0x20,
+    DisplayIndMsg = 0x30,
+    FoodIndMsg = 0x40,
+    FoodReqMsg = 0x41,
+    FoodRespMsg = 0x42,
+    ScoreIndMsg = 0x70,
+    LooseIndMsg = 0x71
+};
+
 struct DirectionInd
 {
     static constexpr std::uint32_t MESSAGE_ID = 0x10;

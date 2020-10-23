@@ -16,6 +16,8 @@ UnexpectedEventException::UnexpectedEventException()
     : std::runtime_error("Unexpected event received!")
 {}
 
+
+
 Controller::Controller(IPort& p_displayPort, IPort& p_foodPort, IPort& p_scorePort, std::string const& p_config)
     : m_displayPort(p_displayPort),
       m_foodPort(p_foodPort),
@@ -215,22 +217,22 @@ Controller::Segment Controller::getNewHead() const
 
 void Controller::receive(std::unique_ptr<Event> e)
 {
-    
-    switch((*e).getMessageId())
+    MessageID typeOfMessage = static_cast<MessageID> ((*e).getMessageId());
+    switch(typeOfMessage)
     {
-        case 0x20:
+        case MessageID::TimeoutIndMsg:
             handleTimePassed(*static_cast<EventT<TimeoutInd> const&>(*e));
             break;
 
-        case 0x10:
+        case MessageID::DirectionIndMsg:
             handleDirectionChange(*static_cast<EventT<DirectionInd> const&>(*e));
             break;
 
-        case 0x40:
+        case MessageID::FoodIndMsg:
             handleFoodPositionChange(*static_cast<EventT<FoodInd> const&>(*e));
             break;
 
-        case 0x42:
+        case MessageID::FoodRespMsg:
             handleNewFood(*static_cast<EventT<FoodResp> const&>(*e));
             break;
 
