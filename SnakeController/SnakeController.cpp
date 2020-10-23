@@ -16,13 +16,89 @@ UnexpectedEventException::UnexpectedEventException()
     : std::runtime_error("Unexpected event received!")
 {}
 
+void Snake::pushSegment(Segment newSegment)
+{
+    m_segments.push_back(newSegment);
+}
+
+bool Snake::isSegmentAtPosition(int x, int y) const
+{
+    return m_segments.end() !=  std::find_if(m_segments.cbegin(), m_segments.cend(),
+        [x, y](auto const& segment){ return segment.x == x and segment.y == y; });
+}
+
+void Snake::removeTailSegmentIfNotScored(Snake::Segment const& newHead, std::pair<int, int> m_FoodPosition)
+{
+    if (std::make_pair(newHead.x, newHead.y) == m_FoodPosition) {
+        m_scorePort.send(std::make_unique<EventT<ScoreInd>>());
+        m_foodPort.send(std::make_unique<EventT<FoodReq>>());
+    } else {
+        removeTailSegment();
+    }
+}
+
+void Snake::removeTailSegment()
+{
+    auto tail = m_segments.back();
+
+    DisplayInd l_evt;
+    l_evt.x = tail.x;
+    l_evt.y = tail.y;
+    l_evt.value = Cell_FREE;
+    m_displayPort.send(std::make_unique<EventT<DisplayInd>>(l_evt));
+
+    m_segments.pop_back();
+}
+
+Snake::Segment Snake::calculateNewHead() const
+{
+    Segment const& currentHead = m_segments.front();
+
+    Segment newHead;
+    newHead.x = currentHead.x + (isHorizontal(m_currentDirection) ? isPositive(m_currentDirection) ? 1 : -1 : 0);
+    newHead.y = currentHead.y + (isVertical(m_currentDirection) ? isPositive(m_currentDirection) ? 1 : -1 : 0);
+
+    return newHead;
+}
+
+void Snake::addHeadSegment(Snake::Segment const& newHead)
+{
+    m_segments.push_front(newHead);
+
+    DisplayInd placeNewHead;
+    placeNewHead.x = newHead.x;
+    placeNewHead.y = newHead.y;
+    placeNewHead.value = Cell_SNAKE;
+
+    m_displayPort.send(std::make_unique<EventT<DisplayInd>>(placeNewHead));
+}
+
+void Snake::updateSegmentsIfSuccessfullMove(Snake::Segment const& newHead)
+{
+    if (isSegmentAtPosition(newHead.x, newHead.y) or map.isPositionOutsideMap(newHead.x, newHead.y)) {
+        m_scorePort.send(std::make_unique<EventT<LooseInd>>());
+    } else {
+        addHeadSegment(newHead);
+        removeTailSegmentIfNotScored(newHead);
+    }
+}
+
+Snake::Snake(IPort& p_displayPort, IPort& p_foodPort, IPort& p_scorePort, Map map):
+    m_displayPort(p_displayPort),
+    m_foodPort(p_foodPort),
+    m_scorePort(p_scorePort),
+    map(map) {}
+
+
 Controller::Controller(IPort& p_displayPort, IPort& p_foodPort, IPort& p_scorePort, std::string const& p_config)
     : m_displayPort(p_displayPort),
       m_foodPort(p_foodPort),
       m_scorePort(p_scorePort),
       m_paused(false)
 {
+    Map map;
     std::istringstream istr(p_config);
+    Snake snake(p_displayPort, p_foodPort, p_foodPort, map);
     char w, f, s, d;
 
     int width, height, length;
@@ -36,16 +112,16 @@ Controller::Controller(IPort& p_displayPort, IPort& p_foodPort, IPort& p_scorePo
         istr >> d;
         switch (d) {
             case 'U':
-                m_currentDirection = Direction_UP;
+                snake.m_currentDirection = Direction_UP;
                 break;
             case 'D':
-                m_currentDirection = Direction_DOWN;
+                snake.m_currentDirection = Direction_DOWN;
                 break;
             case 'L':
-                m_currentDirection = Direction_LEFT;
+                snake.m_currentDirection = Direction_LEFT;
                 break;
             case 'R':
-                m_currentDirection = Direction_RIGHT;
+                snake.m_currentDirection = Direction_RIGHT;
                 break;
             default:
                 throw ConfigurationError();
@@ -53,22 +129,16 @@ Controller::Controller(IPort& p_displayPort, IPort& p_foodPort, IPort& p_scorePo
         istr >> length;
 
         while (length--) {
-            Segment seg;
+            Snake::Segment seg;
             istr >> seg.x >> seg.y;
-            m_segments.push_back(seg);
+            snake.pushSegment(seg);
         }
     } else {
         throw ConfigurationError();
     }
 }
 
-bool Controller::isSegmentAtPosition(int x, int y) const
-{
-    return m_segments.end() !=  std::find_if(m_segments.cbegin(), m_segments.cend(),
-        [x, y](auto const& segment){ return segment.x == x and segment.y == y; });
-}
-
-bool Controller::isPositionOutsideMap(int x, int y) const
+bool Map::isPositionOutsideMap(int x, int y) const
 {
     return x < 0 or y < 0 or x >= m_mapDimension.first or y >= m_mapDimension.second;
 }
@@ -119,62 +189,6 @@ bool perpendicular(Direction dir1, Direction dir2)
 }
 } // namespace
 
-Controller::Segment Controller::calculateNewHead() const
-{
-    Segment const& currentHead = m_segments.front();
-
-    Segment newHead;
-    newHead.x = currentHead.x + (isHorizontal(m_currentDirection) ? isPositive(m_currentDirection) ? 1 : -1 : 0);
-    newHead.y = currentHead.y + (isVertical(m_currentDirection) ? isPositive(m_currentDirection) ? 1 : -1 : 0);
-
-    return newHead;
-}
-
-void Controller::removeTailSegment()
-{
-    auto tail = m_segments.back();
-
-    DisplayInd l_evt;
-    l_evt.x = tail.x;
-    l_evt.y = tail.y;
-    l_evt.value = Cell_FREE;
-    m_displayPort.send(std::make_unique<EventT<DisplayInd>>(l_evt));
-
-    m_segments.pop_back();
-}
-
-void Controller::addHeadSegment(Segment const& newHead)
-{
-    m_segments.push_front(newHead);
-
-    DisplayInd placeNewHead;
-    placeNewHead.x = newHead.x;
-    placeNewHead.y = newHead.y;
-    placeNewHead.value = Cell_SNAKE;
-
-    m_displayPort.send(std::make_unique<EventT<DisplayInd>>(placeNewHead));
-}
-
-void Controller::removeTailSegmentIfNotScored(Segment const& newHead)
-{
-    if (std::make_pair(newHead.x, newHead.y) == m_foodPosition) {
-        m_scorePort.send(std::make_unique<EventT<ScoreInd>>());
-        m_foodPort.send(std::make_unique<EventT<FoodReq>>());
-    } else {
-        removeTailSegment();
-    }
-}
-
-void Controller::updateSegmentsIfSuccessfullMove(Segment const& newHead)
-{
-    if (isSegmentAtPosition(newHead.x, newHead.y) or isPositionOutsideMap(newHead.x, newHead.y)) {
-        m_scorePort.send(std::make_unique<EventT<LooseInd>>());
-    } else {
-        addHeadSegment(newHead);
-        removeTailSegmentIfNotScored(newHead);
-    }
-}
-
 void Controller::handleTimeoutInd()
 {
     updateSegmentsIfSuccessfullMove(calculateNewHead());
@@ -184,8 +198,8 @@ void Controller::handleDirectionInd(std::unique_ptr<Event> e)
 {
     auto direction = payload<DirectionInd>(*e).direction;
 
-    if (perpendicular(m_currentDirection, direction)) {
-        m_currentDirection = direction;
+    if (perpendicular(snake.m_currentDirection, direction)) {
+        snake.m_currentDirection = direction;
     }
 }
 
